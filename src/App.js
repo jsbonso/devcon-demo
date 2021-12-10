@@ -1,81 +1,81 @@
-import React, { useState, useEffect } from "react";
-import "./App.css";
-import { createTodo, updateTodo } from "./graphql/mutations";
-import { listTodos } from "./graphql/queries";
-import Amplify, { API, graphqlOperation } from "aws-amplify";
-import awsExports from "./aws-exports";
+/* src/App.js */
+import React, { useEffect, useState } from 'react'
+import Amplify, { API, graphqlOperation } from 'aws-amplify'
+import { createTodo } from './graphql/mutations'
+import { listTodos } from './graphql/queries'
 
+import awsExports from "./aws-exports";
 Amplify.configure(awsExports);
 
-function App() {
- const [allTodos, setAlltodos] = useState(null);
+const initialState = { name: '', description: '' }
 
- useEffect(() => {
-   (async () => {
-     const todos = await API.graphql(graphqlOperation(listTodos));
-     setAlltodos(todos.data.listTodos.items);
-   })();
- }, []);
+const App = () => {
+  const [formState, setFormState] = useState(initialState)
+  const [todos, setTodos] = useState([])
 
- const [name, setTodoName] = useState("");
+  useEffect(() => {
+    fetchTodos()
+  }, [])
 
- const changeTodoName = (e) => {
-   setTodoName(e.target.value);
- };
+  function setInput(key, value) {
+    setFormState({ ...formState, [key]: value })
+  }
 
- const submitAddTodo = async (e) => {
-   e.preventDefault();
-   if (name === "") return alert("Input field cannot be empty");
-   const todo = { name, done: false };
-   await API.graphql(graphqlOperation(createTodo, { input: todo }));
-   allTodos === null ? setAlltodos([todo]) : setAlltodos([todo, ...allTodos]);
- };
+  async function fetchTodos() {
+    try {
+      const todoData = await API.graphql(graphqlOperation(listTodos))
+      const todos = todoData.data.listTodos.items
+      setTodos(todos)
+    } catch (err) { console.log('error fetching todos') }
+  }
 
- const toggleTodo = async (id) => {
-   const todo = allTodos.find(({ id: _id }) => _id === id);
-   let newTodo = { id, name: todo.name };
-   newTodo.done = todo.done ? false : true;
-   await API.graphql(graphqlOperation(updateTodo, { input: newTodo }));
- };
+  async function addTodo() {
+    try {
+      if (!formState.name || !formState.description) return
+      const todo = { ...formState }
+      setTodos([...todos, todo])
+      setFormState(initialState)
+      await API.graphql(graphqlOperation(createTodo, {input: todo}))
+    } catch (err) {
+      console.log('error creating todo:', err)
+    }
+  }
 
- return (
-
-   <div className="App">
-     <div className="heading">
-       <h1>Amplify Todo</h1>
-       
-     </div>
-     <form className="add-todo-form" onSubmit={submitAddTodo}>
-       <input
-         placeholder="Add Todo"
-         onChange={changeTodoName}
-       />
-       <button type="submit">+</button>
-     </form>
-     {allTodos === null ? (
-       <p>Loading Todos...</p>
-     ) : allTodos.length === 0 ? (
-       <p>No Todo available</p>
-     ) : (
-       <div className="todos">
-         {allTodos.reverse().map(({ id, name, done },i) => (
-           <div className="todo-block" key={i}>
-             <input
-               onClick={() => toggleTodo(id)}
-               type="checkbox"
-               id={id}
-               value={id}
-               key={i}
-               defaultChecked={done}
-             />
-             <label htmlFor={id}>{name}</label>
-           </div>
-         ))}
-       </div>
-     )}
-   </div>
-
- );
+  return (
+    <div style={styles.container}>
+      <h2>Amplify Todos</h2>
+      <input
+        onChange={event => setInput('name', event.target.value)}
+        style={styles.input}
+        value={formState.name}
+        placeholder="Name"
+      />
+      <input
+        onChange={event => setInput('description', event.target.value)}
+        style={styles.input}
+        value={formState.description}
+        placeholder="Description"
+      />
+      <button style={styles.button} onClick={addTodo}>Create Todo</button>
+      {
+        todos.map((todo, index) => (
+          <div key={todo.id ? todo.id : index} style={styles.todo}>
+            <p style={styles.todoName}>{todo.name}</p>
+            <p style={styles.todoDescription}>{todo.description}</p>
+          </div>
+        ))
+      }
+    </div>
+  )
 }
 
-export default App;
+const styles = {
+  container: { width: 400, margin: '0 auto', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: 20 },
+  todo: {  marginBottom: 15 },
+  input: { border: 'none', backgroundColor: '#ddd', marginBottom: 10, padding: 8, fontSize: 18 },
+  todoName: { fontSize: 20, fontWeight: 'bold' },
+  todoDescription: { marginBottom: 0 },
+  button: { backgroundColor: 'black', color: 'white', outline: 'none', fontSize: 18, padding: '12px 0px' }
+}
+
+export default App
